@@ -1115,6 +1115,24 @@ def develop(setup, dest,
         directory = os.path.dirname(setup)
 
     undo = []
+
+    # https://setuptools.pypa.io/en/latest/userguide/development_mode.html
+    if not os.path.exists(setup):
+        try:
+            tmp3 = tempfile.mkdtemp('build', dir=dest)
+            undo.append(lambda : zc.buildout.rmtree.rmtree(tmp3))
+            args = [executable, "-m", "pip", "install", "-e", directory, '-t', tmp3, '--config-settings', 'editable_mode=compat']
+            call_subprocess(args)
+            _detect_distutils_scripts(tmp3)
+            # BBB: copy .pth and rename to egg-link
+            pth = _copyeggs(tmp3, dest, '.pth', undo)
+            egg_link = pth.replace("__editable__.", "")[:-4] + ".egg-link"
+            os.rename(pth, egg_link)
+            return egg_link
+        finally:
+            undo.reverse()
+            [f() for f in undo]
+
     try:
         if build_ext:
             setup_cfg = os.path.join(directory, 'setup.cfg')
